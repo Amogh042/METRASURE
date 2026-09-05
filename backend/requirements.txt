@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+SQLAlchemy
+alembic
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+# ReportLab and Pillow omitted temporarily for python 3.14 compatibility without wheels
+qrcode
+httpx
+pytest
