@@ -63,7 +63,7 @@ class AIExplainer:
                 elif self.gemini_key:
                     # Gemini
                     response = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_key}",
+                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self.gemini_key}",
                         json={
                             "systemInstruction": {"parts": [{"text": system_prompt}]},
                             "contents": [{"parts": [{"text": user_prompt}]}],

@@ -81,6 +81,7 @@ class TestResponse(TestBase):
     id: int
     test_date: datetime
     status: str
+    overall_result: Optional[str] = None
     created_at: datetime
     class Config: from_attributes = True
 

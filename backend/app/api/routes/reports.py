@@ -6,7 +6,7 @@ from app.db.models import Report, User, RoleEnum, ReportVerification, Test, Inst
 from app.schemas import ReportResponse, ReportBase
 from app.api.deps import get_current_active_user, require_role
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 
@@ -32,16 +32,25 @@ def generate_report(
 
     test = db.query(Test).filter(Test.id == test_id).first()
     if not test: raise HTTPException(status_code=404, detail="Test not found")
-    
+
+    if test.overall_result in (None, "PENDING"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot generate report: overall result is PENDING. Evaluate all 5 test modules (Accuracy, Repeatability, Eccentricity, Zero, Tare) first."
+        )
+
     inst = db.query(Instrument).filter(Instrument.id == test.instrument_id).first()
     tech = db.query(User).filter(User.id == test.technician_id).first()
-    
+
     existing = db.query(Report).filter(Report.test_id == test_id).first()
     if existing:
-        if not existing.pdf_path or not os.path.exists(existing.pdf_path):
-            results = db.query(TestResult).filter(TestResult.test_id == test_id).all()
-            existing.pdf_path = generate_report_pdf(existing, test, inst, tech, results)
-            db.commit()
+        # Results may have been recalculated since the last report: refresh verdict and rebuild the PDF
+        existing.final_result = test.overall_result
+        existing.generated_at = datetime.now(timezone.utc)
+        results = db.query(TestResult).filter(TestResult.test_id == test_id).all()
+        existing.pdf_path = generate_report_pdf(existing, test, inst, tech, results)
+        db.commit()
+        db.refresh(existing)
         return existing
     
     report_num = f"REP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -51,7 +60,7 @@ def generate_report(
         report_number=report_num,
         instrument_id=test.instrument_id,
         test_id=test_id,
-        final_result=test.overall_result or "PENDING",
+        final_result=test.overall_result,
         verification_token=token
     )
     db.add(db_report)

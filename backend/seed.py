@@ -14,11 +14,14 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def reset_database():
+    """Drops and recreates all tables. Only used by `python seed.py` (full reset)."""
     print("Resetting database...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
 def seed_demo_data():
+    """Inserts demo data into the existing tables without dropping anything (safe to import and call on startup)."""
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         # 1. Users

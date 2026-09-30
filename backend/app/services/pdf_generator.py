@@ -7,15 +7,19 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch, cm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from app.core.config import settings
+
+# backend/reports, independent of the process cwd
+REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports")
 
 def generate_report_pdf(report, test, instrument, technician, test_results):
     """
     Generates an OIML R-76-2 formatted PDF report.
     """
     # Create directory if not exists
-    os.makedirs("backend/reports", exist_ok=True)
-    
-    file_path = f"backend/reports/{report.report_number}.pdf"
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+
+    file_path = os.path.join(REPORTS_DIR, f"{report.report_number}.pdf")
     
     doc = SimpleDocTemplate(file_path, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
@@ -66,12 +70,12 @@ def generate_report_pdf(report, test, instrument, technician, test_results):
     elements.append(Paragraph("1. General Information", header_style))
     
     # Generate QR Code
-    verify_url = f"http://localhost:3000/verify/{report.verification_token}"
+    verify_url = f"{settings.FRONTEND_URL.rstrip('/')}/verify/{report.verification_token}"
     qr = qrcode.QRCode(version=1, box_size=3, border=1)
     qr.add_data(verify_url)
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white")
-    qr_path = f"backend/reports/qr_{report.report_number}.png"
+    qr_path = os.path.join(REPORTS_DIR, f"qr_{report.report_number}.png")
     qr_img.save(qr_path)
     
     # Layout General Info with QR on the right
@@ -122,41 +126,58 @@ def generate_report_pdf(report, test, instrument, technician, test_results):
         elements.append(Paragraph(f"<b>Test Module: {mod_name}</b>", styles['Heading3']))
         
         # Build Table
-        table_data = [["Measurement ID", "Calculated Error", "MPE Limit", "Result", "Standard Rule"]]
-        
-        for idx, r in enumerate(results):
+        table_data = [["Load", "Indication", "Error", "MPE", "Result", "Rule ID"]]
+        unit = instrument.unit
+
+        for r in results:
             row_result = r.result
             if row_result == "FAIL":
                 row_result = "FAIL (*)"
-                
+
+            if r.measurement is not None:
+                load = f"{r.measurement.test_load:g} {unit}"
+                indication = f"{r.measurement.indicated_value:g} {unit}"
+                error = f"{r.calculated_error:.4f} {unit}"
+            elif mod_name == "Repeatability":
+                # Single module-level result: show the spread (max - min) of the repeated indications
+                reps = [m for m in test.measurements if m.test_module == "Repeatability"]
+                load = f"{reps[0].test_load:g} {unit}" if reps else "-"
+                indication = f"{min(m.indicated_value for m in reps):g}–{max(m.indicated_value for m in reps):g} {unit}" if reps else "-"
+                error = f"{r.calculated_error:.4f} {unit} (max-min)"
+            else:
+                load, indication = "-", "-"
+                error = f"{r.calculated_error:.4f} {unit}"
+
             table_data.append([
-                f"Seq #{idx+1}",
-                f"{r.calculated_error:.4f} {instrument.unit}",
-                f"±{r.permissible_error:.4f} {instrument.unit}",
+                load,
+                indication,
+                error,
+                f"±{r.permissible_error:.4f} {unit}",
                 row_result,
-                "OIML R-76 (2006)"
+                r.rule.rule_id if r.rule else "-"
             ])
-            
-        t_res = Table(table_data, colWidths=[3*cm, 4*cm, 4*cm, 2.5*cm, 4*cm])
+
+        t_res = Table(table_data, colWidths=[2.2*cm, 3.2*cm, 3.6*cm, 2.6*cm, 1.9*cm, 3.5*cm])
         t_res.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#f1f5f9")),
             ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor("#334155")),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 8.5),
             ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#e2e8f0")),
-            ('PADDING', (0,0), (-1,-1), 6),
-            ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+            ('PADDING', (0,0), (-1,-1), 5),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ]))
-        
-        # Color specific FAIL rows
+
+        # Color the Result column
         for i, row in enumerate(table_data[1:], start=1):
-            if "FAIL" in row[3]:
+            if "FAIL" in row[4]:
                 t_res.setStyle(TableStyle([
-                    ('TEXTCOLOR', (3, i), (3, i), colors.red),
-                    ('FONTNAME', (3, i), (3, i), 'Helvetica-Bold')
+                    ('TEXTCOLOR', (4, i), (4, i), colors.red),
+                    ('FONTNAME', (4, i), (4, i), 'Helvetica-Bold')
                 ]))
             else:
                 t_res.setStyle(TableStyle([
-                    ('TEXTCOLOR', (3, i), (3, i), colors.green)
+                    ('TEXTCOLOR', (4, i), (4, i), colors.green)
                 ]))
                 
         elements.append(t_res)

@@ -13,7 +13,6 @@ export default function TourManager() {
             overlayOpacity: 0.65,
             allowClose: true,
             doneBtnText: 'Finish',
-            closeBtnText: 'Skip Tour',
             nextBtnText: 'Next',
             prevBtnText: 'Back',
             steps: [

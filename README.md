@@ -62,8 +62,9 @@ PYTHONPATH=. python seed.py
 ```bash
 cd backend
 source venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 3000
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+The API will be available at [http://localhost:8000](http://localhost:8000) (docs at `/docs`). On startup it creates any missing tables and seeds demo data if the `users` table is empty.
 
 **Frontend:**
 ```bash
@@ -79,6 +80,26 @@ cd backend
 source venv/bin/activate
 PYTHONPATH=. pytest tests/ -v
 ```
+
+## Deployment
+
+**Backend → Render (Web Service)**
+* Root directory: `backend`
+* Build command: `pip install -r requirements.txt`
+* Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+* Environment variables:
+  * `PYTHON_VERSION` = the Python version you tested with locally (e.g. `3.14.7`)
+  * `SECRET_KEY` = a long random string
+  * `FRONTEND_URL` = `https://<your-app>.vercel.app` (used for the QR verification link in PDFs)
+  * `CORS_ORIGINS` = `https://<your-app>.vercel.app` (comma-separated if more than one)
+  * `DATABASE_URL` (optional) = defaults to SQLite; set a Postgres URL for persistence
+  * `OPENAI_API_KEY` / `GEMINI_API_KEY` (optional)
+* The free tier has an ephemeral disk: the SQLite DB and generated PDFs are wiped on every restart/redeploy. The app recreates tables and re-seeds the demo data automatically on startup.
+
+**Frontend → Vercel**
+* Root directory: `frontend` (framework preset: Next.js)
+* Environment variable: `NEXT_PUBLIC_API_URL` = `https://<your-backend>.onrender.com/api`
+* `NEXT_PUBLIC_*` values are baked in at build time, so redeploy after changing it.
 
 ## Demo Credentials (SIH)
 

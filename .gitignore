@@ -20,3 +20,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Stray / generated output
+backend/backend/
+brag-output/
