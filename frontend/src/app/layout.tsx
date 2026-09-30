@@ -44,7 +44,7 @@ export default function RootLayout({
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-xs text-slate-400">OIML R-76 Compliance</span>
+                <span className="hidden sm:inline text-xs text-slate-400">OIML R-76 Compliance</span>
                 <button id="tour-help-btn" className="text-xs font-semibold px-2 py-1 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 transition-colors">Help & Tour</button>
               </div>
             </div>
