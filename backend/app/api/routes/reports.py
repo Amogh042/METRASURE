@@ -53,7 +53,7 @@ def generate_report(
         db.refresh(existing)
         return existing
     
-    report_num = f"REP-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    report_num = f"REP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}"
     token = uuid.uuid4().hex
     
     db_report = Report(

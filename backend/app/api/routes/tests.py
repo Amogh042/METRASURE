@@ -115,15 +115,18 @@ def calculate_test(id: int, test_module: str, db: Session = Depends(get_db), cur
             "repeat_number": m.repeat_number
         })
         
-    # Fetch applicable rule from DB (Simplified mapping for MVP)
-    rule = db.query(OIMLRule).filter(
+    # Fetch ALL enabled rules for this module + class; the engine picks the load band (Table 6) per measurement
+    rules = db.query(OIMLRule).filter(
         OIMLRule.test_type == test_module,
         OIMLRule.accuracy_class == inst.accuracy_class,
         OIMLRule.enabled == True
-    ).first()
+    ).all()
+    if not rules:
+        raise HTTPException(status_code=400, detail=f"No enabled {test_module} rules are configured for accuracy class {inst.accuracy_class}.")
+    rule_pk = {r.rule_id: r.id for r in rules}
     
     try:
-        engine_result = calculate(test_module, inst, meas_dicts, rule)
+        engine_result = calculate(test_module, inst, meas_dicts, rules)
     except RuleEngineException as e:
         raise HTTPException(status_code=400, detail=str(e))
         
@@ -143,7 +146,7 @@ def calculate_test(id: int, test_module: str, db: Session = Depends(get_db), cur
             permissible_error=calc_vals.get("mpe_limit", 0.0),
             result=engine_result["pass_fail"],
             explanation=engine_result.get("explanation", ""),
-            rule_id=rule.id if rule else None
+            rule_id=rule_pk.get(calc_vals.get("rule_id"))
         )
         test_results.append(tr)
     elif test_module == "Eccentricity":
@@ -158,7 +161,7 @@ def calculate_test(id: int, test_module: str, db: Session = Depends(get_db), cur
                     permissible_error=pos_data.get("mpe_limit", 0.0),
                     result="PASS" if pos_data.get("passed") else "FAIL",
                     explanation="",
-                    rule_id=rule.id if rule else None
+                    rule_id=rule_pk.get(pos_data.get("rule_id"))
                 )
                 test_results.append(tr)
     else: # Accuracy, Zero, Tare
@@ -188,7 +191,7 @@ def calculate_test(id: int, test_module: str, db: Session = Depends(get_db), cur
                     permissible_error=meas_data.get("mpe_limit", 0.0),
                     result="PASS" if meas_data.get("passed") else "FAIL",
                     explanation="",
-                    rule_id=rule.id if rule else None
+                    rule_id=rule_pk.get(meas_data.get("rule_id"))
                 )
                 test_results.append(tr)
                 

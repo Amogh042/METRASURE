@@ -5,9 +5,17 @@ from app.db.database import get_db
 from app.db.models import OIMLRule, RuleAuditLog, User, RoleEnum, TestResult
 from app.schemas import OIMLRuleCreate, OIMLRuleUpdate, OIMLRuleResponse, RuleAuditLogResponse
 from app.api.deps import get_current_active_user, require_role
+from app.engine.core import RuleEngineException
+from app.engine.conditions import parse_condition
 import json
 
 router = APIRouter(prefix="/rules", tags=["Rules Config"])
+
+def validate_condition(condition: str):
+    try:
+        parse_condition(condition)
+    except RuleEngineException as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 def get_rule_json(rule: OIMLRule):
     return json.dumps({
@@ -49,6 +57,7 @@ def create_rule(
 ):
     if db.query(OIMLRule).filter(OIMLRule.rule_id == rule_in.rule_id).first():
         raise HTTPException(status_code=400, detail="Rule ID already exists")
+    validate_condition(rule_in.condition)
 
     rule_data = rule_in.model_dump(exclude={"reason"})
     new_rule = OIMLRule(**rule_data)
@@ -89,6 +98,8 @@ def update_rule(
     is_used = db.query(TestResult).filter(TestResult.rule_id == id).first() is not None
     
     update_data = rule_in.model_dump(exclude={"reason"}, exclude_unset=True)
+    if "condition" in update_data:
+        validate_condition(update_data["condition"])
     
     core_fields_changed = any(k not in ["enabled", "notes"] for k in update_data.keys())
     

@@ -1,21 +1,23 @@
 from typing import List, Dict, Any
 from app.db.models import Instrument, OIMLRule
-from app.engine.core import RuleEngineException
+from app.engine.core import RuleEngineException, rule_summary
+from app.engine.conditions import select_rule, band_details
 
-def evaluate_eccentric(instrument: Instrument, measurements: List[Dict[str, Any]], applicable_rule: OIMLRule) -> Dict[str, Any]:
+def evaluate_eccentric(instrument: Instrument, measurements: List[Dict[str, Any]], applicable_rules: List[OIMLRule]) -> Dict[str, Any]:
     """
     Evaluates the Eccentric loading test.
     Source Reference: OIML R-76-1 (2006) 3.6.2 Eccentric loading
     Rule: The indications for different positions of a load shall meet the maximum permissible errors,
     when the instrument is tested according to 3.6.2.1 - 3.6.2.4.
+    The MPE band is selected per position from m = load / e (Table 6).
     """
     if not measurements:
         raise RuleEngineException("Missing measurements for Eccentricity test.")
         
     e_interval = instrument.verification_interval
-    mpe_limit = applicable_rule.permissible_error * e_interval
     
     calculated_values = []
+    rules_used = []
     overall_pass = True
     
     for idx, m in enumerate(measurements):
@@ -27,9 +29,13 @@ def evaluate_eccentric(instrument: Instrument, measurements: List[Dict[str, Any]
             raise RuleEngineException(f"Missing load or indication at measurement {idx}.")
         if not position:
             raise RuleEngineException(f"Missing position (e.g. Center, Front-Left) at measurement {idx}.")
+        
+        rule, m_value = select_rule(applicable_rules, load, e_interval)
+        band = band_details(rule, m_value, e_interval)
+        rules_used.append(rule)
             
         error = indication - load
-        passed = round(abs(error), 5) <= round(mpe_limit, 5)
+        passed = round(abs(error), 5) <= round(band["mpe_limit"], 5)
         
         if not passed:
             overall_pass = False
@@ -39,7 +45,7 @@ def evaluate_eccentric(instrument: Instrument, measurements: List[Dict[str, Any]
             "load": load,
             "indication": indication,
             "error": error,
-            "mpe_limit": mpe_limit,
+            **band,
             "passed": passed
         })
 
@@ -47,10 +53,7 @@ def evaluate_eccentric(instrument: Instrument, measurements: List[Dict[str, Any]
 
     return {
         "calculated_values": {"positions": calculated_values},
-        "applicable_rule": applicable_rule.rule_id,
-        "permissible_limit": mpe_limit,
         "pass_fail": "PASS" if overall_pass else "FAIL",
         "explanation": explanation,
-        "source_reference": applicable_rule.source_reference or "OIML R-76-1 (2006) 3.6.2",
-        "rule_version": applicable_rule.standard_version
+        **rule_summary(rules_used, [c["mpe_limit"] for c in calculated_values], "OIML R-76-1 (2006) 3.6.2"),
     }

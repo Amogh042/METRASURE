@@ -20,6 +20,11 @@ export default function AdminRulesPage() {
     const [formData, setFormData] = useState<any>({});
     const [formReason, setFormReason] = useState("");
 
+    // Filters
+    const [classFilter, setClassFilter] = useState("");
+    const [testFilter, setTestFilter] = useState("");
+    const visibleRules = rules.filter(r => (!classFilter || r.accuracy_class === classFilter) && (!testFilter || r.test_type === testFilter));
+
     const fetchAllRules = async () => {
         try {
             setLoading(true);
@@ -87,7 +92,9 @@ export default function AdminRulesPage() {
             if (editingRule.id === "NEW") {
                 await createRule(payload);
             } else {
-                await updateRule(editingRule.id, payload);
+                // Only send changed fields, so e.g. a notes-only edit is allowed on a rule already used in tests
+                const changed = Object.fromEntries(Object.entries(formData).filter(([k, v]) => k !== "id" && v !== editingRule[k]));
+                await updateRule(editingRule.id, { ...changed, reason: formReason });
             }
             
             setEditingRule(null);
@@ -130,6 +137,19 @@ export default function AdminRulesPage() {
                 </button>
             </div>
 
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 items-center">
+                <select value={classFilter} onChange={e => setClassFilter(e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-2 bg-white">
+                    <option value="">All Classes</option>
+                    {["I", "II", "III", "IIII"].map(c => <option key={c} value={c}>Class {c}</option>)}
+                </select>
+                <select value={testFilter} onChange={e => setTestFilter(e.target.value)} className="border border-slate-300 rounded-lg text-sm px-3 py-2 bg-white">
+                    <option value="">All Tests</option>
+                    {["Accuracy", "Repeatability", "Eccentricity", "Zero", "Tare"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <span className="text-xs text-slate-500">{visibleRules.length} of {rules.length} rules · Condition bands use m = load / e</span>
+            </div>
+
             {/* Rules Table */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="overflow-x-auto">
@@ -139,6 +159,7 @@ export default function AdminRulesPage() {
                                 <th className="px-5 py-3 text-left">Rule ID</th>
                                 <th className="px-5 py-3 text-left">Standard</th>
                                 <th className="px-5 py-3 text-left">Test & Class</th>
+                                <th className="px-5 py-3 text-left">Condition</th>
                                 <th className="px-5 py-3 text-left">Formula</th>
                                 <th className="px-5 py-3 text-left">MPE</th>
                                 <th className="px-5 py-3 text-left">Status</th>
@@ -146,9 +167,9 @@ export default function AdminRulesPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
-                            {rules.map(rule => (
+                            {visibleRules.map(rule => (
                                 <tr key={rule.id} className="hover:bg-slate-50/70 transition-colors">
-                                    <td className="px-5 py-3">
+                                    <td className="px-5 py-3 whitespace-nowrap">
                                         <span className="font-mono font-bold text-slate-800">{rule.rule_id}</span>
                                     </td>
                                     <td className="px-5 py-3 text-slate-600">
@@ -156,6 +177,9 @@ export default function AdminRulesPage() {
                                     </td>
                                     <td className="px-5 py-3 text-slate-700">
                                         {rule.test_type} <span className="text-xs bg-slate-100 px-1 rounded ml-1">Cl. {rule.accuracy_class}</span>
+                                    </td>
+                                    <td className="px-5 py-3 whitespace-nowrap">
+                                        <code className="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded" title={rule.source_reference || ""}>{rule.condition}</code>
                                     </td>
                                     <td className="px-5 py-3">
                                         <code className="text-xs bg-slate-100 text-pink-600 px-1.5 py-0.5 rounded">{rule.formula_reference}</code>

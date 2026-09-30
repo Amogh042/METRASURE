@@ -9,8 +9,9 @@ class MockInstrument:
         self.unit = unit
 
 class MockRule:
-    def __init__(self, rule_id="RULE-1", permissible_error=1.0, standard_version="2006", source_reference="Ref"):
+    def __init__(self, rule_id="RULE-1", permissible_error=1.0, standard_version="2006", source_reference="Ref", condition="Always"):
         self.rule_id = rule_id
+        self.condition = condition
         self.permissible_error = permissible_error
         self.standard_version = standard_version
         self.source_reference = source_reference
@@ -24,13 +25,13 @@ def test_missing_accuracy_class():
     inst = MockInstrument(accuracy_class=None)
     rule = MockRule()
     with pytest.raises(RuleEngineException, match="Instrument is missing an accuracy class."):
-        calculate("Accuracy", inst, [{"test_load": 10, "indicated_value": 10}], rule)
+        calculate("Accuracy", inst, [{"test_load": 10, "indicated_value": 10}], [rule])
 
 def test_unsupported_test_type():
     inst = MockInstrument()
     rule = MockRule()
     with pytest.raises(RuleEngineException, match="Unsupported test type"):
-        calculate("UnknownTest", inst, [{"test_load": 10, "indicated_value": 10}], rule)
+        calculate("UnknownTest", inst, [{"test_load": 10, "indicated_value": 10}], [rule])
 
 # Accuracy Module Tests
 def test_accuracy_pass():
@@ -39,7 +40,7 @@ def test_accuracy_pass():
     measurements = [
         {"test_load": 10.0, "indicated_value": 10.5, "unit": "kg"}, # error = 0.5 (PASS)
     ]
-    res = calculate("Accuracy", inst, measurements, rule)
+    res = calculate("Accuracy", inst, measurements, [rule])
     assert res["pass_fail"] == "PASS"
 
 def test_accuracy_fail_above_limit():
@@ -48,7 +49,7 @@ def test_accuracy_fail_above_limit():
     measurements = [
         {"test_load": 10.0, "indicated_value": 11.5, "unit": "kg"}, # error = 1.5 (FAIL)
     ]
-    res = calculate("Accuracy", inst, measurements, rule)
+    res = calculate("Accuracy", inst, measurements, [rule])
     assert res["pass_fail"] == "FAIL"
 
 def test_accuracy_boundary_condition():
@@ -57,7 +58,7 @@ def test_accuracy_boundary_condition():
     measurements = [
         {"test_load": 10.0, "indicated_value": 11.0, "unit": "kg"}, # error = 1.0 (PASS, exact boundary)
     ]
-    res = calculate("Accuracy", inst, measurements, rule)
+    res = calculate("Accuracy", inst, measurements, [rule])
     assert res["pass_fail"] == "PASS"
 
 def test_accuracy_negative_load():
@@ -67,7 +68,7 @@ def test_accuracy_negative_load():
         {"test_load": -10.0, "indicated_value": 10.5, "unit": "kg"},
     ]
     with pytest.raises(RuleEngineException, match="Invalid negative load"):
-        calculate("Accuracy", inst, measurements, rule)
+        calculate("Accuracy", inst, measurements, [rule])
 
 def test_accuracy_wrong_unit():
     inst = MockInstrument(verification_interval=1.0, unit="kg")
@@ -76,14 +77,14 @@ def test_accuracy_wrong_unit():
         {"test_load": 10.0, "indicated_value": 10.5, "unit": "g"}, # Wrong unit
     ]
     with pytest.raises(RuleEngineException, match="Measurement unit"):
-        calculate("Accuracy", inst, measurements, rule)
+        calculate("Accuracy", inst, measurements, [rule])
 
 def test_accuracy_missing_measurement_data():
     inst = MockInstrument(verification_interval=1.0, unit="kg")
     rule = MockRule(permissible_error=1.0)
     measurements = []
     with pytest.raises(RuleEngineException, match="Missing measurements"):
-        calculate("Accuracy", inst, measurements, rule)
+        calculate("Accuracy", inst, measurements, [rule])
 
 # Repeatability Module Tests
 def test_repeatability_pass():
@@ -94,7 +95,7 @@ def test_repeatability_pass():
         {"test_load": 50.0, "indicated_value": 50.1},
         {"test_load": 50.0, "indicated_value": 50.8}, # diff = 0.7 <= 1.0
     ]
-    res = calculate("Repeatability", inst, measurements, rule)
+    res = calculate("Repeatability", inst, measurements, [rule])
     assert res["pass_fail"] == "PASS"
 
 def test_repeatability_fail():
@@ -104,7 +105,7 @@ def test_repeatability_fail():
         {"test_load": 50.0, "indicated_value": 50.1},
         {"test_load": 50.0, "indicated_value": 51.2}, # diff = 1.1 > 1.0 (FAIL)
     ]
-    res = calculate("Repeatability", inst, measurements, rule)
+    res = calculate("Repeatability", inst, measurements, [rule])
     assert res["pass_fail"] == "FAIL"
 
 def test_repeatability_different_loads():
@@ -115,7 +116,7 @@ def test_repeatability_different_loads():
         {"test_load": 60.0, "indicated_value": 60.1},
     ]
     with pytest.raises(RuleEngineException, match="Repeatability test loads must be identical"):
-        calculate("Repeatability", inst, measurements, rule)
+        calculate("Repeatability", inst, measurements, [rule])
 
 # Eccentricity Module Tests
 def test_eccentricity_pass():
@@ -125,7 +126,7 @@ def test_eccentricity_pass():
         {"position": "Center", "test_load": 50.0, "indicated_value": 50.5},
         {"position": "Front-Left", "test_load": 50.0, "indicated_value": 49.5},
     ]
-    res = calculate("Eccentricity", inst, measurements, rule)
+    res = calculate("Eccentricity", inst, measurements, [rule])
     assert res["pass_fail"] == "PASS"
 
 def test_eccentricity_missing_position():
@@ -135,7 +136,7 @@ def test_eccentricity_missing_position():
         {"test_load": 50.0, "indicated_value": 50.5}, # Missing position
     ]
     with pytest.raises(RuleEngineException, match="Missing position"):
-        calculate("Eccentricity", inst, measurements, rule)
+        calculate("Eccentricity", inst, measurements, [rule])
 
 # Zero Module Tests
 def test_zero_pass():
@@ -144,7 +145,7 @@ def test_zero_pass():
     measurements = [
         {"test_load": 0.0, "indicated_value": 0.2}, # diff 0.2 <= 0.25 (PASS)
     ]
-    res = calculate("Zero", inst, measurements, rule)
+    res = calculate("Zero", inst, measurements, [rule])
     assert res["pass_fail"] == "PASS"
 
 def test_zero_fail():
@@ -153,7 +154,7 @@ def test_zero_fail():
     measurements = [
         {"test_load": 0.0, "indicated_value": 0.3}, # diff 0.3 > 0.25 (FAIL)
     ]
-    res = calculate("Zero", inst, measurements, rule)
+    res = calculate("Zero", inst, measurements, [rule])
     assert res["pass_fail"] == "FAIL"
 
 # Tare Module Tests
@@ -163,5 +164,5 @@ def test_tare_pass():
     measurements = [
         {"test_load": 10.0, "indicated_value": 10.5}, # error 0.5 <= 1.0 (PASS)
     ]
-    res = calculate("Tare", inst, measurements, rule)
+    res = calculate("Tare", inst, measurements, [rule])
     assert res["pass_fail"] == "PASS"

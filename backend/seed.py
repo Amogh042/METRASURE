@@ -13,6 +13,36 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def get_password_hash(password):
     return pwd_context.hash(password)
 
+# OIML R-76-1 (2006) Table 6: MPEs on initial verification, as (MPE in e, condition on m = load / e) per class
+TABLE_6_BANDS = {
+    "I":    [(0.5, "0<=m<=50000e"), (1.0, "50000e<m<=200000e"), (1.5, "200000e<m")],
+    "II":   [(0.5, "0<=m<=5000e"),  (1.0, "5000e<m<=20000e"),   (1.5, "20000e<m<=100000e")],
+    "III":  [(0.5, "0<=m<=500e"),   (1.0, "500e<m<=2000e"),     (1.5, "2000e<m<=10000e")],
+    "IIII": [(0.5, "0<=m<=50e"),    (1.0, "50e<m<=200e"),       (1.5, "200e<m<=1000e")],
+}
+BANDED_TESTS = {"Accuracy": "ACC", "Repeatability": "REP", "Eccentricity": "ECC", "Tare": "TAR"}
+
+def build_table6_rules():
+    """One rule per (test, class, Table 6 band), plus a flat 0.25e Zero rule per class."""
+    rules = []
+    for cls, bands in TABLE_6_BANDS.items():
+        for test_type, code in BANDED_TESTS.items():
+            for n, (mpe, condition) in enumerate(bands, start=1):
+                rules.append(OIMLRule(
+                    rule_id=f"R76-{code}-{cls}-{n:03d}", standard="OIML R-76-1", standard_version="2006",
+                    test_type=test_type, accuracy_class=cls, condition=condition,
+                    formula_reference=f"{mpe:g}e", permissible_error=mpe, unit="e",
+                    source_reference="OIML R-76-1 (2006) Table 6",
+                    notes=f"Initial verification MPE ±{mpe:g}e for {condition}",
+                ))
+        rules.append(OIMLRule(
+            rule_id=f"R76-ZER-{cls}-001", standard="OIML R-76-1", standard_version="2006",
+            test_type="Zero", accuracy_class=cls, condition="Always",
+            formula_reference="0.25e", permissible_error=0.25, unit="e",
+            source_reference="OIML R-76-1 (2006) 4.5.2", notes="Zero-setting accuracy ±0.25e",
+        ))
+    return rules
+
 def reset_database():
     """Drops and recreates all tables. Only used by `python seed.py` (full reset)."""
     print("Resetting database...")
@@ -35,13 +65,7 @@ def seed_demo_data():
 
         # 2. OIML Rules
         print("Seeding OIML Rules...")
-        rules = [
-            OIMLRule(rule_id="R76-ACC-III-001", standard="OIML R-76-1", standard_version="2006", test_type="Accuracy", accuracy_class="III", condition="Always", formula_reference="1e", permissible_error=1.0, unit="e", source_reference="OIML R-76-1 3.5.1", notes="Standard Accuracy Test Limit"),
-            OIMLRule(rule_id="R76-REP-III-001", standard="OIML R-76-1", standard_version="2006", test_type="Repeatability", accuracy_class="III", condition="Always", formula_reference="1e", permissible_error=1.0, unit="e", source_reference="OIML R-76-1 3.6.1", notes="Repeatability MPE"),
-            OIMLRule(rule_id="R76-ECC-III-001", standard="OIML R-76-1", standard_version="2006", test_type="Eccentricity", accuracy_class="III", condition="Always", formula_reference="1e", permissible_error=1.0, unit="e", source_reference="OIML R-76-1 3.6.2", notes="Eccentric Loading MPE"),
-            OIMLRule(rule_id="R76-ZER-III-001", standard="OIML R-76-1", standard_version="2006", test_type="Zero", accuracy_class="III", condition="Always", formula_reference="0.25e", permissible_error=0.25, unit="e", source_reference="OIML R-76-1 4.5.2", notes="Zero Indication limit"),
-            OIMLRule(rule_id="R76-TAR-III-001", standard="OIML R-76-1", standard_version="2006", test_type="Tare", accuracy_class="III", condition="Always", formula_reference="1e", permissible_error=1.0, unit="e", source_reference="OIML R-76-1 4.6.1", notes="Tare Device MPE")
-        ]
+        rules = build_table6_rules()
         db.add_all(rules)
         db.commit()
 
@@ -49,8 +73,9 @@ def seed_demo_data():
         print("Seeding Instruments...")
         inst1 = Instrument(instrument_id="DEMO-001", manufacturer="Mettler Toledo", model="ICS689", serial_number="SN-9821-MT", instrument_type="Non-Automatic Weighing Instrument", accuracy_class="III", max_capacity=30.0, min_capacity=0.2, verification_interval=0.01, unit="kg", owner="Global Logistics Ltd.", location="Dock 4")
         inst2 = Instrument(instrument_id="DEMO-002", manufacturer="CAS", model="DB-II", serial_number="SN-FAIL-404", instrument_type="Platform Scale", accuracy_class="III", max_capacity=150.0, min_capacity=1.0, verification_interval=0.05, unit="kg", owner="Local Produce Market", location="Warehouse B")
+        inst3 = Instrument(instrument_id="DEMO-003", manufacturer="Demo Precision Instruments", model="DPB-6K", serial_number="SN-II-6000", instrument_type="Precision Balance", accuracy_class="II", max_capacity=6.0, min_capacity=0.05, verification_interval=0.001, unit="kg", owner="State Legal Metrology Lab", location="Precision Room")
         
-        db.add_all([inst1, inst2])
+        db.add_all([inst1, inst2, inst3])
         db.commit()
         db.refresh(inst1)
         db.refresh(inst2)

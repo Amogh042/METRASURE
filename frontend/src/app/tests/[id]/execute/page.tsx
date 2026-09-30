@@ -229,7 +229,10 @@ export default function TestSession() {
                     <td className={`px-4 py-2 text-sm font-mono font-medium ${isFail ? "text-red-700" : "text-gray-700"}`}>
                         {resRow.error >= 0 ? "+" : ""}{resRow.error.toFixed(4)}
                     </td>
-                    <td className="px-4 py-2 text-sm font-mono text-gray-500">±{resRow.mpe_limit.toFixed(4)}</td>
+                    <td className="px-4 py-2 text-sm font-mono text-gray-500">
+                        ±{resRow.mpe_limit.toFixed(4)}
+                        {resRow.band && <span className="block text-[10px] text-gray-400" title={resRow.rule_id}>{resRow.mpe_multiplier}e · {resRow.band}</span>}
+                    </td>
                     <td className="px-4 py-2 text-center">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${resRow.passed ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
                             {resRow.passed ? "PASS" : "FAIL"}
@@ -352,6 +355,7 @@ export default function TestSession() {
                                 <p className="font-semibold text-red-800 mb-1">Explanation for Row {whyIdx + 1}</p>
                                 <p className="text-red-700">Calculated error = {resRow.error >= 0 ? "+" : ""}{resRow.error.toFixed(4)} {instrument.unit}.</p>
                                 <p className="text-red-700">MPE Limit = ±{resRow.mpe_limit.toFixed(4)} {instrument.unit}.</p>
+                                {resRow.band && <p className="text-red-700">m = load / e = {resRow.m}e falls in band {resRow.band}, so MPE = {resRow.mpe_multiplier}e (rule {resRow.rule_id}).</p>}
                                 <p className="text-red-700 mt-1">Because |{Math.abs(resRow.error).toFixed(4)}| &gt; {resRow.mpe_limit.toFixed(4)}, it <strong>fails</strong> the rule.</p>
                             </div>
                         );
@@ -388,6 +392,7 @@ export default function TestSession() {
                                         <p>Min Indication: <span className="font-mono font-bold">{result.calculated_values.min_indication ?? "—"}</span></p>
                                         <p>Max Difference: <span className="font-mono font-bold">{result.calculated_values.max_difference != null ? result.calculated_values.max_difference.toFixed(4) : "—"}</span></p>
                                         <p>MPE Limit: <span className="font-mono font-bold">{result.calculated_values.mpe_limit != null ? result.calculated_values.mpe_limit.toFixed(4) : "—"}</span></p>
+                                        {result.calculated_values.band && <p>Band: <span className="font-mono font-bold">{result.calculated_values.band}</span> ({result.calculated_values.mpe_multiplier}e, m = {result.calculated_values.m}e)</p>}
                                     </div>
                                 )}
                                 <p className="text-xs mt-3 text-gray-500">Rule Engine: {result.applicable_rule} · Source: {result.source_reference}</p>

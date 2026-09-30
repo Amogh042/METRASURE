@@ -55,7 +55,7 @@ source venv/bin/activate
 alembic upgrade head
 PYTHONPATH=. python seed.py
 ```
-*Note: This creates two demo instruments (DEMO-001, DEMO-002) and populates realistic historical dashboard metrics.*
+*Note: This creates three demo instruments (DEMO-001 and DEMO-002 in Class III, DEMO-003 in Class II), OIML R-76-1 Table 6 MPE rules for all four accuracy classes, and realistic historical dashboard metrics.*
 
 ### Running the Application
 **Backend:**
@@ -114,7 +114,7 @@ The system is seeded with Role-Based Access Control (RBAC):
 **Recommended SIH Demo Flow:**
 1. Login as `admin`.
 2. View **Dashboard** analytics.
-3. Select **Instruments** -> `DEMO-001` (Pass Scenario) or `DEMO-002` (Fail Scenario).
+3. Select **Instruments** -> `DEMO-001` (Pass Scenario) or `DEMO-002` (Fail Scenario). Exact readings are in [DEMO_SCRIPT.md](DEMO_SCRIPT.md).
 4. Click **Start Calibration Session**.
 5. Input test measurements across the 5 modules.
 6. Click **Evaluate** (Engine calculates instantly).
@@ -132,7 +132,7 @@ The backend deterministically supports the core R-76 evaluation modules:
 5. **Tare Device** (OIML R-76-1: 4.6.1)
 
 ## Known Limitations
-* **Step-based MPEs:** The MVP uses a simplified linear MPE calculation (`e` multiplier) based on active rules. Fully scaling to OIML's stepped weight bounds (e.g., `0 <= m <= 500e = 0.5e`) requires deeper parser logic in the engine.
+* **MPEs are for initial verification only:** Stepped MPEs follow OIML R-76-1 (2006) Table 6, configured per class as DB rules whose `condition` band (e.g. `500e<m<=2000e`, with m = load / e) is parsed strictly by `app/engine/conditions.py`. In-service MPEs (twice the initial-verification values) aren't modelled yet.
 * **Authentication:** Uses localized JWT tokens without long-lived refresh-token rotation.
 * **Database:** SQLite is single-file; production deployments will require a migration to PostgreSQL.
 
@@ -140,4 +140,3 @@ The backend deterministically supports the core R-76 evaluation modules:
 * **PostgreSQL Migration:** Full relational database scaling for high-concurrency environments.
 * **IoT / Bluetooth Scale Integration:** Directly ingest weight telemetry from physical NAWI devices via Web-Serial or Bluetooth, bypassing manual technician entry.
 * **Blockchain Hash Verification:** Tie the PDF verification token to a decentralized ledger to make retroactive report forgery mathematically impossible.
-* **Complex Condition Parser:** Implement an AST (Abstract Syntax Tree) parser in the Python engine to natively interpret complex condition strings like `500e < m <= 2000e` dynamically from the DB.
